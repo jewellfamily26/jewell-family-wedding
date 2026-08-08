@@ -212,6 +212,22 @@ footer>*{position:relative;z-index:1}
   .photo-modal-nav.prev{left:7px}.photo-modal-nav.next{right:7px}
 }
 
+/* Mobile Our Story fix */
+@media(max-width:700px){
+  #story.reveal{opacity:1;transform:none}
+  #story{padding-top:70px;padding-bottom:70px}
+  #story .section-heading{margin-bottom:38px}
+  #story .section-heading h2{font-size:clamp(2.45rem,12vw,3.7rem)}
+  #story .chapter{display:flex;flex-direction:column;gap:22px;margin-bottom:58px}
+  #story .chapter.reverse{flex-direction:column}
+  #story .chapter>div,#story .chapter.reverse>div{order:1;width:100%}
+  #story .chapter>img,#story .chapter.reverse>img{order:2;width:100%;height:auto;max-height:none;object-fit:cover;border-radius:18px}
+  #story .chapter h3{font-size:clamp(2.1rem,10vw,3rem)}
+  #story .chapter p{font-size:1rem;line-height:1.75}
+  #story .photo-strip{margin-top:-12px;margin-bottom:55px;gap:12px}
+  #story .photo-strip img{height:auto;max-height:none;aspect-ratio:4/5;object-fit:cover}
+}
+
 </style>
 </head>
 <body>
@@ -411,10 +427,21 @@ function dismissSplash(){splash?.classList.add('hidden');sessionStorage.setItem(
 enterSite?.addEventListener('click',dismissSplash);
 if(sessionStorage.getItem('jewellSplashSeen')) splash?.classList.add('hidden');
 
-const observer=new IntersectionObserver(entries=>{
-  entries.forEach(entry=>{if(entry.isIntersecting){entry.target.classList.add('visible');observer.unobserve(entry.target)}})
-},{threshold:.12});
-document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
+// Reveal sections as soon as they begin entering the viewport.
+// A low threshold is important for tall mobile sections such as Our Story.
+if ('IntersectionObserver' in window) {
+  const observer=new IntersectionObserver(entries=>{
+    entries.forEach(entry=>{
+      if(entry.isIntersecting){
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  },{threshold:.01,rootMargin:'0px 0px -6% 0px'});
+  document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
+} else {
+  document.querySelectorAll('.reveal').forEach(el=>el.classList.add('visible'));
+}
 
 const lightbox=document.getElementById('lightbox');
 const lightboxImg=lightbox?.querySelector('img');
