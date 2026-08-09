@@ -407,7 +407,7 @@ footer>*{position:relative;z-index:1}
     <section class="section memories reveal" id="memories">
       <div class="section-heading"><p class="eyebrow">See the week through everyone's eyes</p><h2>Shared Memories</h2><p>Share the moments you capture throughout wedding week. Your photos and videos will be saved to our family collection and can be enjoyed here by everyone.</p></div>
       <div class="form-grid">
-        <form id="uploadForm" class="card-form"><h3>Add Photos or Videos</h3><label>Your name<input name="name" id="memoryGuestName" autocomplete="name" required></label><label>Choose files<input type="file" id="mediaFiles" accept="image/*,video/*" multiple required></label><button class="button" id="uploadMemoriesButton" type="submit">Upload Memories</button><small>Choose photos or short video clips from your phone. Files upload one at a time. Photos can be up to 20 MB each; videos can be up to 50 MB each.</small><div class="upload-progress" id="uploadProgress" hidden><span></span></div></form>
+        <form id="uploadForm" class="card-form"><h3>Add Photos or Videos</h3><label>Your name<input name="name" id="memoryGuestName" autocomplete="name" required></label><label>Choose files<input type="file" id="mediaFiles" accept="image/*,video/*" multiple required></label><button class="button" id="uploadMemoriesButton" type="submit">Upload Memories</button><small>Choose photos or short video clips from your phone. Files upload one at a time. Photos can be up to 20 MB each; videos can be up to 30 MB each.</small><div class="upload-progress" id="uploadProgress" hidden><span></span></div></form>
         <form id="messageForm" class="card-form"><h3>Song Requests, Messages &amp; Well Wishes</h3><label>Your name<input name="guest" required></label><label>Song request<input name="song" placeholder="A song that gets you dancing"></label><label>Message or well wishes<textarea name="message" rows="4" placeholder="Share a note, memory or well wishes for Alex &amp; Michelle"></textarea></label><button class="button" type="submit">Save message</button><small>Messages on this card are saved on this device for now.</small></form>
       </div>
       <div id="memoryUploadStatus" class="memories-upload-status" role="status" aria-live="polite"></div>
@@ -455,7 +455,7 @@ const toggle=document.querySelector('.menu-toggle'),nav=document.querySelector('
 // Gallery reads use Apps Script JSONP; uploads post to a hidden iframe so GitHub Pages does not depend on cross-origin fetch permissions.
 const MEMORY_API='https://script.google.com/macros/s/AKfycbzwgO5DJ2ztuCqpNNQEm7cniXt80ulNjBhNJShLRvCb4_tFGO5i_5f8wHyPoU5zO-tuBw/exec';
 const MAX_MEMORY_PHOTO_BYTES=20*1024*1024;
-const MAX_MEMORY_VIDEO_BYTES=50*1024*1024;
+const MAX_MEMORY_VIDEO_BYTES=30*1024*1024;
 const uploadForm=document.querySelector('#uploadForm');
 const mediaFiles=document.querySelector('#mediaFiles');
 const preview=document.querySelector('#uploadPreview');
@@ -527,10 +527,11 @@ function postMemoryToDrive(file,guestName){
   });
 }
 
-function loadSharedGallery(){
+function requestGalleryData(options={}){
+  const {render=true}=options;
   return new Promise((resolve,reject)=>{
     if(!sharedGallery)return resolve({success:true,count:0,items:[]});
-    sharedGallery.innerHTML='<div class="gallery-loading">Loading shared memories…</div>';
+    if(render)sharedGallery.innerHTML='<div class="gallery-loading">Loading shared memories…</div>';
     const callback='jewellGallery_'+Date.now()+'_'+Math.floor(Math.random()*100000);
     const script=document.createElement('script');
     let finished=false;
@@ -538,15 +539,35 @@ function loadSharedGallery(){
     window[callback]=(data)=>{
       if(finished)return;
       cleanup();
-      if(!data||!data.success){renderGalleryError(data?.error||'The gallery could not be loaded.');return reject(new Error(data?.error||'Gallery unavailable'))}
+      if(!data||!data.success){if(render)renderGalleryError(data?.error||'The gallery could not be loaded.');return reject(new Error(data?.error||'Gallery unavailable'))}
       currentGalleryCount=Number(data.count)||0;
-      renderSharedGallery(data.items||[]);resolve(data);
+      if(render)renderSharedGallery(data.items||[]);resolve(data);
     };
-    script.onerror=()=>{if(finished)return;cleanup();renderGalleryError('The shared gallery could not be reached. Tap Refresh Gallery to try again.');reject(new Error('Gallery request failed'))};
+    script.onerror=()=>{if(finished)return;cleanup();if(render)renderGalleryError('The shared gallery could not be reached. Tap Refresh Gallery to try again.');reject(new Error('Gallery request failed'))};
     script.src=MEMORY_API+'?action=gallery&prefix='+encodeURIComponent(callback)+'&_='+Date.now();
     document.body.appendChild(script);
-    const timeout=setTimeout(()=>{if(finished)return;cleanup();renderGalleryError('The gallery is taking too long to load. Tap Refresh Gallery to try again.');reject(new Error('Gallery timed out'))},20000);
+    const timeout=setTimeout(()=>{if(finished)return;cleanup();if(render)renderGalleryError('The gallery is taking too long to load. Tap Refresh Gallery to try again.');reject(new Error('Gallery timed out'))},20000);
   });
+}
+
+function loadSharedGallery(){return requestGalleryData({render:true})}
+
+async function confirmUploadedMemories(files,guestName,beforeIds){
+  const wanted=files.map(file=>({name:file.name,guestName}));
+  const deadline=Date.now()+30000;
+  let lastData=null;
+  while(Date.now()<deadline){
+    try{
+      lastData=await requestGalleryData({render:false});
+      const newItems=(lastData.items||[]).filter(item=>!beforeIds.has(String(item.id)));
+      const matched=wanted.every(target=>newItems.some(item=>
+        String(item.name||'')===target.name && String(item.guestName||'')===target.guestName
+      ));
+      if(matched)return {confirmed:true,data:lastData};
+    }catch{}
+    await new Promise(r=>setTimeout(r,2500));
+  }
+  return {confirmed:false,data:lastData};
 }
 
 function renderGalleryError(message){if(sharedGallery)sharedGallery.innerHTML='<div class="gallery-error"></div>';const box=sharedGallery?.querySelector('.gallery-error');if(box)box.textContent=message}
@@ -584,26 +605,33 @@ uploadForm?.addEventListener('submit',async e=>{
   });
   if(oversized){
     const isVideo=oversized.type.startsWith('video/');
-    const limitLabel=isVideo?'50 MB':'20 MB';
+    const limitLabel=isVideo?'30 MB':'20 MB';
     const kind=isVideo?'video':'photo';
     setMemoryStatus(oversized.name+' is '+formatBytes(oversized.size)+'. Please choose a '+kind+' '+limitLabel+' or smaller.','error');
     return;
   }
   uploadButton.disabled=true;mediaFiles.disabled=true;
   if(uploadProgress){uploadProgress.hidden=false;if(uploadProgressBar)uploadProgressBar.style.width='0%'}
-  const startingCount=currentGalleryCount;
+  let beforeIds=new Set();
   try{
+    try{
+      const before=await requestGalleryData({render:false});
+      beforeIds=new Set((before.items||[]).map(item=>String(item.id)));
+    }catch{}
     for(let i=0;i<files.length;i++){
       setMemoryStatus('Uploading '+(i+1)+' of '+files.length+': '+files[i].name+' ('+formatBytes(files[i].size)+'). Please keep this page open.');
       await postMemoryToDrive(files[i],guestName);
       if(uploadProgressBar)uploadProgressBar.style.width=Math.round(((i+1)/files.length)*100)+'%';
     }
-    setMemoryStatus('Uploads received. Updating the shared gallery…');
-    await new Promise(r=>setTimeout(r,1400));
-    const result=await loadSharedGallery();
-    if((Number(result.count)||0)>=startingCount+files.length)setMemoryStatus('Your memories are uploaded! Thank you for adding to our wedding week collection.','success');
-    else setMemoryStatus('Your upload was sent. If it does not appear yet, tap Refresh Gallery in a moment.','success');
-    uploadForm.reset();preview.innerHTML='';
+    setMemoryStatus('Upload request finished. Confirming your memories in the wedding gallery…');
+    const confirmation=await confirmUploadedMemories(files,guestName,beforeIds);
+    await loadSharedGallery().catch(()=>{});
+    if(confirmation.confirmed){
+      setMemoryStatus('Your memories are uploaded! Thank you for adding to our wedding week collection.','success');
+      uploadForm.reset();preview.innerHTML='';
+    }else{
+      setMemoryStatus('We could not confirm that your upload reached the wedding gallery. Please try again. For videos, choose a clip 30 MB or smaller.','error');
+    }
   }catch(err){setMemoryStatus(err?.message||'Something went wrong while uploading. Please try again.','error')}
   finally{uploadButton.disabled=false;mediaFiles.disabled=false;setTimeout(()=>{if(uploadProgress)uploadProgress.hidden=true},1200)}
 });
