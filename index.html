@@ -228,6 +228,37 @@ footer>*{position:relative;z-index:1}
   #story .photo-strip img{height:auto;max-height:none;aspect-ratio:4/5;object-fit:cover}
 }
 
+
+/* Shared Memories — Google Drive connected gallery */
+.memories-upload-status{max-width:1000px;margin:18px auto 0;padding:14px 16px;border-radius:14px;background:rgba(23,61,50,.08);display:none}
+.memories-upload-status.show{display:block}
+.memories-upload-status.error{background:rgba(117,27,34,.10);color:var(--burgundy)}
+.memories-upload-status.success{background:rgba(23,61,50,.12);color:var(--forest)}
+.memory-selected{max-width:1000px;margin:24px auto 0;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.memory-selected article{background:white;border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+.memory-selected img,.memory-selected video{width:100%;height:220px;object-fit:cover;background:#111}
+.memory-selected p{margin:0;padding:10px 12px;font-size:.8rem;overflow-wrap:anywhere}
+.shared-gallery-wrap{max-width:1100px;margin:58px auto 0}
+.shared-gallery-head{display:flex;align-items:end;justify-content:space-between;gap:18px;margin-bottom:22px}
+.shared-gallery-head h3{font-size:clamp(2rem,5vw,3.2rem);margin:0}
+.shared-gallery-head p{margin:.4em 0 0}
+.gallery-refresh{white-space:nowrap}
+.shared-gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.memory-card{background:white;border-radius:18px;overflow:hidden;box-shadow:var(--shadow);min-width:0}
+.memory-media{display:block;width:100%;aspect-ratio:4/3;background:#e7e2d9;overflow:hidden}
+.memory-media img{width:100%;height:100%;object-fit:cover;transition:transform .3s ease}
+.memory-media:hover img{transform:scale(1.025)}
+.memory-video{width:100%;aspect-ratio:4/3;border:0;display:block;background:#111}
+.memory-meta{padding:13px 15px}
+.memory-meta strong{display:block;font-family:Georgia,"Times New Roman",serif;font-size:1.03rem}
+.memory-meta span{display:block;color:#766d64;font-size:.76rem;margin-top:2px}
+.gallery-empty,.gallery-loading,.gallery-error{grid-column:1/-1;text-align:center;padding:34px;background:rgba(255,255,255,.68);border-radius:18px}
+.upload-progress{height:9px;border-radius:999px;background:#e5ddd0;overflow:hidden;margin-top:10px}
+.upload-progress span{display:block;height:100%;width:0;background:var(--forest);transition:width .25s ease}
+#memoryUploadFrame{display:none}
+@media(max-width:800px){.shared-gallery{grid-template-columns:repeat(2,minmax(0,1fr))}.memory-selected{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.shared-gallery,.memory-selected{grid-template-columns:1fr}.shared-gallery-head{align-items:stretch;flex-direction:column}.gallery-refresh{width:100%;text-align:center}.memory-selected img,.memory-selected video{height:auto;max-height:420px}.memory-media,.memory-video{aspect-ratio:4/3}}
+
 </style>
 </head>
 <body>
@@ -374,12 +405,19 @@ footer>*{position:relative;z-index:1}
     </section>
 
     <section class="section memories reveal" id="memories">
-      <div class="section-heading"><p class="eyebrow">See the week through everyone's eyes</p><h2>Shared Memories</h2><p>Share photos and videos from the whole week. Everyone will be able to enjoy the collection.</p></div>
+      <div class="section-heading"><p class="eyebrow">See the week through everyone's eyes</p><h2>Shared Memories</h2><p>Share the moments you capture throughout wedding week. Your photos and videos will be saved to our family collection and can be enjoyed here by everyone.</p></div>
       <div class="form-grid">
-        <form id="uploadForm" class="card-form"><h3>Add Photos or Videos</h3><label>Your name<input name="name" required></label><label>Choose files<input type="file" id="mediaFiles" accept="image/*,video/*" multiple></label><button class="button" type="submit">Preview uploads</button><small>This first working version previews files on this device. Permanent shared uploads will be connected before launch.</small></form>
-        <form id="messageForm" class="card-form"><h3>Song Requests, Messages &amp; Well Wishes</h3><label>Your name<input name="guest" required></label><label>Song request<input name="song" placeholder="A song that gets you dancing"></label><label>Message or well wishes<textarea name="message" rows="4" placeholder="Share a note, memory or well wishes for Alex &amp; Michelle"></textarea></label><button class="button" type="submit">Save message</button><small>Entries are stored in this browser for the demo.</small></form>
+        <form id="uploadForm" class="card-form"><h3>Add Photos or Videos</h3><label>Your name<input name="name" id="memoryGuestName" autocomplete="name" required></label><label>Choose files<input type="file" id="mediaFiles" accept="image/*,video/*" multiple required></label><button class="button" id="uploadMemoriesButton" type="submit">Upload Memories</button><small>Choose photos or short video clips from your phone. Files upload one at a time; maximum 15 MB per file.</small><div class="upload-progress" id="uploadProgress" hidden><span></span></div></form>
+        <form id="messageForm" class="card-form"><h3>Song Requests, Messages &amp; Well Wishes</h3><label>Your name<input name="guest" required></label><label>Song request<input name="song" placeholder="A song that gets you dancing"></label><label>Message or well wishes<textarea name="message" rows="4" placeholder="Share a note, memory or well wishes for Alex &amp; Michelle"></textarea></label><button class="button" type="submit">Save message</button><small>Messages on this card are saved on this device for now.</small></form>
       </div>
-      <div id="uploadPreview" class="upload-preview"></div><div id="savedMessages" class="saved-messages"></div>
+      <div id="memoryUploadStatus" class="memories-upload-status" role="status" aria-live="polite"></div>
+      <div id="uploadPreview" class="memory-selected" aria-label="Selected upload previews"></div>
+      <iframe id="memoryUploadFrame" name="memoryUploadFrame" title="Memory upload response"></iframe>
+      <div id="savedMessages" class="saved-messages"></div>
+      <div class="shared-gallery-wrap">
+        <div class="shared-gallery-head"><div><p class="eyebrow">From all of us</p><h3>Wedding Week Gallery</h3><p>New memories appear here after they finish uploading.</p></div><button class="button secondary gallery-refresh" id="refreshMemories" type="button">Refresh Gallery</button></div>
+        <div id="sharedGallery" class="shared-gallery" aria-live="polite"><div class="gallery-loading">Loading shared memories…</div></div>
+      </div>
     </section>
 
     <section class="section faq reveal" id="faq">
@@ -413,7 +451,151 @@ dots.forEach((d,i)=>d.addEventListener('click',()=>{clearInterval(timer);showSli
 const target=new Date('2026-09-22T16:00:00-04:00').getTime();
 function countdown(){const gap=Math.max(0,target-Date.now()),sec=Math.floor(gap/1000);document.querySelector('#days').textContent=Math.floor(sec/86400);document.querySelector('#hours').textContent=Math.floor(sec%86400/3600);document.querySelector('#minutes').textContent=Math.floor(sec%3600/60);document.querySelector('#seconds').textContent=sec%60}countdown();setInterval(countdown,1000);
 const toggle=document.querySelector('.menu-toggle'),nav=document.querySelector('.nav');toggle.addEventListener('click',()=>{nav.classList.toggle('open');toggle.setAttribute('aria-expanded',nav.classList.contains('open'))});nav.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>nav.classList.remove('open')));
-const uploadForm=document.querySelector('#uploadForm'),preview=document.querySelector('#uploadPreview');uploadForm.addEventListener('submit',e=>{e.preventDefault();preview.innerHTML='';[...document.querySelector('#mediaFiles').files].forEach(file=>{const url=URL.createObjectURL(file);let el=file.type.startsWith('video')?document.createElement('video'):document.createElement('img');el.src=url;if(el.tagName==='VIDEO')el.controls=true;preview.appendChild(el)});if(!preview.children.length)preview.innerHTML='<p>Please choose at least one photo or video.</p>'});
+// Shared Memories: real Google Drive uploads + shared gallery.
+// Gallery reads use Apps Script JSONP; uploads post to a hidden iframe so GitHub Pages does not depend on cross-origin fetch permissions.
+const MEMORY_API='https://script.google.com/macros/s/AKfycbzwgO5DJ2ztuCqpNNQEm7cniXt80ulNjBhNJShLRvCb4_tFGO5i_5f8wHyPoU5zO-tuBw/exec';
+const MAX_MEMORY_FILE_BYTES=15*1024*1024;
+const uploadForm=document.querySelector('#uploadForm');
+const mediaFiles=document.querySelector('#mediaFiles');
+const preview=document.querySelector('#uploadPreview');
+const memoryStatus=document.querySelector('#memoryUploadStatus');
+const uploadButton=document.querySelector('#uploadMemoriesButton');
+const uploadProgress=document.querySelector('#uploadProgress');
+const uploadProgressBar=uploadProgress?.querySelector('span');
+const uploadFrame=document.querySelector('#memoryUploadFrame');
+const sharedGallery=document.querySelector('#sharedGallery');
+const refreshMemories=document.querySelector('#refreshMemories');
+let currentGalleryCount=0;
+
+function setMemoryStatus(message,type=''){
+  if(!memoryStatus)return;
+  memoryStatus.textContent=message;
+  memoryStatus.className='memories-upload-status show'+(type?' '+type:'');
+}
+function clearMemoryStatus(){if(memoryStatus){memoryStatus.textContent='';memoryStatus.className='memories-upload-status'}}
+function formatBytes(bytes){if(bytes<1024*1024)return Math.max(1,Math.round(bytes/1024))+' KB';return (bytes/1024/1024).toFixed(1)+' MB'}
+function formatMemoryDate(value){try{return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(value))}catch{return ''}}
+
+mediaFiles?.addEventListener('change',()=>{
+  preview.innerHTML='';
+  clearMemoryStatus();
+  [...mediaFiles.files].forEach(file=>{
+    const article=document.createElement('article');
+    const url=URL.createObjectURL(file);
+    const media=file.type.startsWith('video/')?document.createElement('video'):document.createElement('img');
+    media.src=url;
+    if(media.tagName==='VIDEO'){media.controls=true;media.preload='metadata'}
+    else media.alt='Selected wedding memory preview';
+    const label=document.createElement('p');
+    label.textContent=file.name+' · '+formatBytes(file.size);
+    article.append(media,label);preview.appendChild(article);
+  });
+});
+
+function fileToBase64(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve(String(reader.result).split(',')[1]||'');
+    reader.onerror=()=>reject(new Error('Could not read '+file.name));
+    reader.readAsDataURL(file);
+  });
+}
+
+function postMemoryToDrive(file,guestName){
+  return new Promise(async(resolve,reject)=>{
+    if(!uploadFrame)return reject(new Error('Upload frame is unavailable.'));
+    let timeout;
+    try{
+      const base64=await fileToBase64(file);
+      const form=document.createElement('form');
+      form.method='POST';form.action=MEMORY_API;form.target='memoryUploadFrame';form.style.display='none';
+      const fields={guestName,fileName:file.name,mimeType:file.type||'application/octet-stream'};
+      Object.entries(fields).forEach(([name,value])=>{const input=document.createElement('input');input.type='hidden';input.name=name;input.value=value;form.appendChild(input)});
+      const data=document.createElement('textarea');data.name='fileData';data.value=base64;data.hidden=true;form.appendChild(data);
+      let submitted=false;
+      const onLoad=()=>{if(!submitted)return;cleanup();resolve()};
+      const cleanup=()=>{clearTimeout(timeout);uploadFrame.removeEventListener('load',onLoad);form.remove()};
+      uploadFrame.addEventListener('load',onLoad);
+      document.body.appendChild(form);
+      submitted=true;form.submit();
+      timeout=setTimeout(()=>{cleanup();reject(new Error('Upload timed out. Please try again.'))},90000);
+    }catch(err){reject(err)}
+  });
+}
+
+function loadSharedGallery(){
+  return new Promise((resolve,reject)=>{
+    if(!sharedGallery)return resolve({success:true,count:0,items:[]});
+    sharedGallery.innerHTML='<div class="gallery-loading">Loading shared memories…</div>';
+    const callback='jewellGallery_'+Date.now()+'_'+Math.floor(Math.random()*100000);
+    const script=document.createElement('script');
+    let finished=false;
+    const cleanup=()=>{finished=true;delete window[callback];script.remove();clearTimeout(timeout)};
+    window[callback]=(data)=>{
+      if(finished)return;
+      cleanup();
+      if(!data||!data.success){renderGalleryError(data?.error||'The gallery could not be loaded.');return reject(new Error(data?.error||'Gallery unavailable'))}
+      currentGalleryCount=Number(data.count)||0;
+      renderSharedGallery(data.items||[]);resolve(data);
+    };
+    script.onerror=()=>{if(finished)return;cleanup();renderGalleryError('The shared gallery could not be reached. Tap Refresh Gallery to try again.');reject(new Error('Gallery request failed'))};
+    script.src=MEMORY_API+'?action=gallery&prefix='+encodeURIComponent(callback)+'&_='+Date.now();
+    document.body.appendChild(script);
+    const timeout=setTimeout(()=>{if(finished)return;cleanup();renderGalleryError('The gallery is taking too long to load. Tap Refresh Gallery to try again.');reject(new Error('Gallery timed out'))},20000);
+  });
+}
+
+function renderGalleryError(message){if(sharedGallery)sharedGallery.innerHTML='<div class="gallery-error"></div>';const box=sharedGallery?.querySelector('.gallery-error');if(box)box.textContent=message}
+function renderSharedGallery(items){
+  if(!sharedGallery)return;
+  sharedGallery.innerHTML='';
+  if(!items.length){sharedGallery.innerHTML='<div class="gallery-empty"><strong>No memories yet.</strong><br>Be the first to add a photo or video from wedding week.</div>';return}
+  items.forEach(item=>{
+    const card=document.createElement('article');card.className='memory-card';
+    if(String(item.mimeType||'').startsWith('video/')){
+      const iframe=document.createElement('iframe');iframe.className='memory-video';iframe.src='https://drive.google.com/file/d/'+encodeURIComponent(item.id)+'/preview';iframe.loading='lazy';iframe.allow='autoplay; fullscreen';iframe.setAttribute('allowfullscreen','');iframe.title='Video shared by '+(item.guestName||'Wedding Guest');card.appendChild(iframe);
+    }else{
+      const link=document.createElement('a');link.className='memory-media';link.href=item.viewUrl||('https://drive.google.com/file/d/'+encodeURIComponent(item.id)+'/view');link.target='_blank';link.rel='noopener';
+      const img=document.createElement('img');img.loading='lazy';img.alt='Photo shared by '+(item.guestName||'Wedding Guest');img.src='https://drive.google.com/thumbnail?id='+encodeURIComponent(item.id)+'&sz=w1200';
+      link.appendChild(img);card.appendChild(link);
+    }
+    const meta=document.createElement('div');meta.className='memory-meta';
+    const who=document.createElement('strong');who.textContent=item.guestName||'Wedding Guest';
+    const when=document.createElement('span');when.textContent=formatMemoryDate(item.uploadedAt);
+    meta.append(who,when);card.appendChild(meta);sharedGallery.appendChild(card);
+  });
+}
+
+uploadForm?.addEventListener('submit',async e=>{
+  e.preventDefault();
+  const guestName=document.querySelector('#memoryGuestName')?.value.trim();
+  const files=[...(mediaFiles?.files||[])];
+  if(!guestName){setMemoryStatus('Please enter your name before uploading.','error');return}
+  if(!files.length){setMemoryStatus('Please choose at least one photo or video.','error');return}
+  const invalid=files.find(file=>!file.type.startsWith('image/')&&!file.type.startsWith('video/'));
+  if(invalid){setMemoryStatus('Please choose photos or videos only.','error');return}
+  const tooLarge=files.find(file=>file.size>MAX_MEMORY_FILE_BYTES);
+  if(tooLarge){setMemoryStatus(tooLarge.name+' is '+formatBytes(tooLarge.size)+'. Please choose files 15 MB or smaller.','error');return}
+  uploadButton.disabled=true;mediaFiles.disabled=true;
+  if(uploadProgress){uploadProgress.hidden=false;if(uploadProgressBar)uploadProgressBar.style.width='0%'}
+  const startingCount=currentGalleryCount;
+  try{
+    for(let i=0;i<files.length;i++){
+      setMemoryStatus('Uploading '+(i+1)+' of '+files.length+': '+files[i].name);
+      await postMemoryToDrive(files[i],guestName);
+      if(uploadProgressBar)uploadProgressBar.style.width=Math.round(((i+1)/files.length)*100)+'%';
+    }
+    setMemoryStatus('Uploads received. Updating the shared gallery…');
+    await new Promise(r=>setTimeout(r,1400));
+    const result=await loadSharedGallery();
+    if((Number(result.count)||0)>=startingCount+files.length)setMemoryStatus('Your memories are uploaded! Thank you for adding to our wedding week collection.','success');
+    else setMemoryStatus('Your upload was sent. If it does not appear yet, tap Refresh Gallery in a moment.','success');
+    uploadForm.reset();preview.innerHTML='';
+  }catch(err){setMemoryStatus(err?.message||'Something went wrong while uploading. Please try again.','error')}
+  finally{uploadButton.disabled=false;mediaFiles.disabled=false;setTimeout(()=>{if(uploadProgress)uploadProgress.hidden=true},1200)}
+});
+refreshMemories?.addEventListener('click',()=>loadSharedGallery().catch(()=>{}));
+loadSharedGallery().catch(()=>{});
 const messageForm=document.querySelector('#messageForm'),saved=document.querySelector('#savedMessages');let entries=JSON.parse(localStorage.getItem('jewellMessages')||'[]');
 function render(){saved.innerHTML=entries.map(x=>`<article class="message-card"><strong>${escapeHTML(x.guest)}</strong>${x.song?`<p>🎵 ${escapeHTML(x.song)}</p>`:''}${x.message?`<p>${escapeHTML(x.message)}</p>`:''}</article>`).join('')}
 function escapeHTML(s=''){return s.replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
